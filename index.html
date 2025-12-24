@@ -132,7 +132,7 @@
                 Thêm ảnh
                 <input type="file" id="file-input" multiple accept="image/*">
             </label>
-            <div class="hint-text">Chuột: Xoay 3D | Click: Xem ảnh | Chuột phải (khi đang xem): Xóa ảnh <br> Phím 1, 2, 3: Đổi chế độ <br> Nhấn phím 'H' hoặc ấn 2 lần màn hình để ẩn/ hiện các nút điều khiển</div>
+            <div class="hint-text">Chuột: Xoay 3D | Click: Xem ảnh | Chuột phải (khi đang xem): Xóa ảnh <br> Phím 1, 2: Đổi chế độ <br> Nhấn phím 'H' hoặc ấn 2 lần màn hình để ẩn/ hiện các nút điều khiển</div>
         </div>
     </div>
 
@@ -661,11 +661,6 @@
 				const key = e.key.toLowerCase();
 				if (key === '1') { STATE.mode = 'TREE'; STATE.focusTarget = null; }
 				else if (key === '2') { STATE.mode = 'SCATTER'; STATE.focusTarget = null; }
-				else if (key === '3') { 
-					STATE.mode = 'FOCUS';
-					const photos = particleSystem.filter(p => p.type === 'PHOTO');
-					if (photos.length) STATE.focusTarget = photos[Math.floor(Math.random()*photos.length)].mesh;
-				}
 				else if (key === 'h') {
 					const controls = document.querySelector('.upload-wrapper');
 					if (controls) controls.classList.toggle('ui-hidden');
