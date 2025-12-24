@@ -138,7 +138,7 @@
 
     <!-- Webcam hidden structure -->
     <div id="webcam-wrapper">
-        <video id="webcam" autoplay playsinline style="display:none;"></video>
+        <video id="webcam" autoplay playsinline muted style="display:none;"></video>
         <canvas id="webcam-preview"></canvas>
     </div>
 
@@ -514,7 +514,7 @@
             handLandmarker = await HandLandmarker.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-                    delegate: "GPU"
+                    delegate: "CPU"
                 },
                 runningMode: "VIDEO",
                 numHands: 1
