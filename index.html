@@ -132,7 +132,7 @@
                 Thêm ảnh
                 <input type="file" id="file-input" multiple accept="image/*">
             </label>
-            <div class="hint-text">Chuột: Xoay 3D | Click: Xem ảnh | Phím 1, 2, 3: Đổi chế độ <br> Nhấn phím 'H' hoặc ấn 2 lần màn hình để ẩn/ hiện các nút điều khiển</div>
+            <div class="hint-text">Chuột: Xoay 3D | Click: Xem ảnh | Chuột phải (khi đang xem): Xóa ảnh <br> Phím 1, 2, 3: Đổi chế độ <br> Nhấn phím 'H' hoặc ấn 2 lần màn hình để ẩn/ hiện các nút điều khiển</div>
         </div>
     </div>
 
@@ -179,6 +179,8 @@
         };
 
         let scene, camera, renderer, composer;
+		let raycaster = new THREE.Raycaster();
+		let mouse = new THREE.Vector2();
         let mainGroup; 
         let clock = new THREE.Clock();
         let particleSystem = []; 
@@ -576,7 +578,30 @@
             }
         }
 
-        function setupEvents() {
+		function removePhoto(targetMesh) {
+			if (!targetMesh) return;
+
+			// 1. Xóa khỏi Group hiển thị
+			photoMeshGroup.remove(targetMesh);
+
+			// 2. Xóa khỏi hệ thống hạt (để dừng update vị trí)
+			const index = particleSystem.findIndex(p => p.mesh === targetMesh);
+			if (index > -1) {
+				particleSystem.splice(index, 1);
+			}
+			
+			// 3. Giải phóng bộ nhớ (tùy chọn nhưng nên làm)
+			targetMesh.traverse(child => {
+				if (child.geometry) child.geometry.dispose();
+				if (child.material) {
+					if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+					else child.material.dispose();
+				}
+			});
+		}
+
+		// --- Cập nhật lại hàm setupEvents ---
+		function setupEvents() {
 			window.addEventListener('resize', () => {
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
@@ -586,44 +611,77 @@
 
 			document.getElementById('file-input').addEventListener('change', handleImageUpload);
 
-			// --- ĐIỀU KHIỂN BẰNG CHUỘT ---
+			// Bắt tọa độ chuột để xoay và để Raycast
 			window.addEventListener('mousemove', (e) => {
-				// Chuyển tọa độ chuột về khoảng -1 đến 1 (giống như MediaPipe)
+				// Tọa độ để xoay (STATE)
 				STATE.hand.x = (e.clientX / window.innerWidth - 0.5) * 2;
 				STATE.hand.y = (e.clientY / window.innerHeight - 0.5) * 2;
-				STATE.hand.detected = true; // Giả lập là luôn có "tay" để xoay được 3D
+				STATE.hand.detected = true;
+
+				// Tọa độ chuẩn hóa cho Raycaster (-1 đến +1)
+				mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+				mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 			});
 
-			// Click chuột để kích hoạt chế độ FOCUS (thay cho cử chỉ chụm tay)
-			window.addEventListener('mousedown', () => {
-				if (STATE.mode !== 'FOCUS') {
-					STATE.mode = 'FOCUS';
-					const photos = particleSystem.filter(p => p.type === 'PHOTO');
-					if (photos.length) {
-						STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh;
+			// CLICK CHUỘT TRÁI: Để chọn chính xác ảnh
+			window.addEventListener('mousedown', (e) => {
+				if (e.button !== 0) return; // Chỉ xử lý chuột trái
+
+				// Cập nhật tia Raycaster từ camera và chuột
+				raycaster.setFromCamera(mouse, camera);
+
+				// Kiểm tra xem tia có đâm xuyên qua ảnh nào không
+				const intersects = raycaster.intersectObjects(photoMeshGroup.children, true);
+
+				if (intersects.length > 0) {
+					// Tìm đối tượng cha (Group) chứa tấm ảnh đó
+					let target = intersects[0].object;
+					while (target.parent && target.parent !== photoMeshGroup) {
+						target = target.parent;
 					}
+					
+					STATE.mode = 'FOCUS';
+					STATE.focusTarget = target;
+				} else {
+					// Nếu click ra ngoài ảnh, bạn có thể chọn quay về TREE hoặc SCATTER
+					// STATE.mode = 'SCATTER';
 				}
 			});
 
-			// --- ĐIỀU KHIỂN BẰNG PHÍM ---
+			// CLICK CHUỘT PHẢI: Để xóa ảnh đang xem
+			window.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+				removePhoto(STATE.focusTarget);
+				STATE.mode = 'SCATTER'; // Quay về chế độ bay sau khi xóa
+				STATE.focusTarget = null;
+			});
+
+			// PHÍM BẤM
 			window.addEventListener('keydown', (e) => {
 				const key = e.key.toLowerCase();
-				
-				if (key === '1') {
-					STATE.mode = 'TREE';
-					STATE.focusTarget = null;
-				} else if (key === '2') {
-					STATE.mode = 'SCATTER';
-					STATE.focusTarget = null;
-				} else if (key === '3') {
-					// Phím 3 bật tắt chế độ Focus thủ công
+				if (key === '1') { STATE.mode = 'TREE'; STATE.focusTarget = null; }
+				else if (key === '2') { STATE.mode = 'SCATTER'; STATE.focusTarget = null; }
+				else if (key === '3') { 
 					STATE.mode = 'FOCUS';
 					const photos = particleSystem.filter(p => p.type === 'PHOTO');
 					if (photos.length) STATE.focusTarget = photos[Math.floor(Math.random()*photos.length)].mesh;
-				} else if (key === 'h') {
+				}
+				else if (key === 'h') {
 					const controls = document.querySelector('.upload-wrapper');
 					if (controls) controls.classList.toggle('ui-hidden');
 				}
+			});
+			
+			// CHẠM 2 LẦN (Cho Mobile)
+			let lastTap = 0;
+			window.addEventListener('touchend', (e) => {
+				const currentTime = new Date().getTime();
+				const tapLength = currentTime - lastTap;
+				if (tapLength < 300 && tapLength > 0) {
+					const controls = document.querySelector('.upload-wrapper');
+					if (controls) controls.classList.toggle('ui-hidden');
+				}
+				lastTap = currentTime;
 			});
 		}
 
