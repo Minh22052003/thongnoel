@@ -572,22 +572,34 @@
         }
 
         function setupEvents() {
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                composer.setSize(window.innerWidth, window.innerHeight);
-            });
-            document.getElementById('file-input').addEventListener('change', handleImageUpload);
-            
-            // Toggle UI logic - ONLY hide controls, keep title
-            window.addEventListener('keydown', (e) => {
-                if (e.key.toLowerCase() === 'h') {
-                    const controls = document.querySelector('.upload-wrapper');
-                    if (controls) controls.classList.toggle('ui-hidden');
-                }
-            });
-        }
+			window.addEventListener('resize', () => {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				composer.setSize(window.innerWidth, window.innerHeight);
+			});
+
+			document.getElementById('file-input').addEventListener('change', handleImageUpload);
+			
+			// LOGIC MỚI: Click hoặc Chạm 2 lần để ẩn/hiện UI
+			let lastClickTime = 0;
+			window.addEventListener('click', (e) => {
+				// Kiểm tra nếu click vào nút "Thêm ảnh" thì không ẩn UI
+				if (e.target.closest('.upload-btn')) return;
+
+				const currentTime = new Date().getTime();
+				const clickDelay = currentTime - lastClickTime;
+
+				if (clickDelay < 300 && clickDelay > 0) {
+					// Đây là Double Click
+					const controls = document.querySelector('.upload-wrapper');
+					const title = document.querySelector('h1');
+					if (controls) controls.classList.toggle('ui-hidden');
+					if (title) title.classList.toggle('ui-hidden'); // Ẩn luôn cả chữ tiêu đề cho đẹp
+				}
+				lastClickTime = currentTime;
+			});
+		}
 
         function animate() {
             requestAnimationFrame(animate);
