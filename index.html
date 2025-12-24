@@ -132,7 +132,7 @@
                 Thêm ảnh
                 <input type="file" id="file-input" multiple accept="image/*">
             </label>
-            <div class="hint-text">Nhấn phím 'H' hoặc ấn 2 lần màn hình để ẩn/ hiện các nút điều khiển</div>
+            <div class="hint-text">Chuột: Xoay 3D | Click: Xem ảnh | Phím 1, 2, 3: Đổi chế độ <br> Nhấn phím 'H' hoặc ấn 2 lần màn hình để ẩn/ hiện các nút điều khiển</div>
         </div>
     </div>
 
@@ -503,28 +503,33 @@
 
         // --- MEDIAPIPE ---
         async function initMediaPipe() {
-            video = document.getElementById('webcam');
-            webcamCanvas = document.getElementById('webcam-preview');
-            webcamCtx = webcamCanvas.getContext('2d');
-            webcamCanvas.width = 160; webcamCanvas.height = 120;
+			try {
+				video = document.getElementById('webcam');
+				webcamCanvas = document.getElementById('webcam-preview');
+				webcamCtx = webcamCanvas.getContext('2d');
+				webcamCanvas.width = 160; webcamCanvas.height = 120;
 
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-            );
-            handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-                    delegate: "CPU"
-                },
-                runningMode: "VIDEO",
-                numHands: 1
-            });
-            
-            if (navigator.mediaDevices?.getUserMedia) {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-                video.addEventListener("loadeddata", predictWebcam);
-            }
+				const vision = await FilesetResolver.forVisionTasks(
+					"https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+				);
+				handLandmarker = await HandLandmarker.createFromOptions(vision, {
+					baseOptions: {
+						modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+						delegate: "CPU"
+					},
+					runningMode: "VIDEO",
+					numHands: 1
+				});
+				
+				if (navigator.mediaDevices?.getUserMedia) {
+					const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+					video.srcObject = stream;
+					video.addEventListener("loadeddata", predictWebcam);
+				}
+			} catch (e) {
+				console.log("Camera không khả dụng, chuyển sang chế độ điều khiển bằng chuột/phím.");
+				STATE.hand.detected = true; // Cho phép xoay bằng chuột ngay cả khi không có cam
+			}
         }
 
         let lastVideoTime = -1;
@@ -580,24 +585,45 @@
 			});
 
 			document.getElementById('file-input').addEventListener('change', handleImageUpload);
-			
-			// LOGIC MỚI: Click hoặc Chạm 2 lần để ẩn/hiện UI
-			let lastClickTime = 0;
-			window.addEventListener('click', (e) => {
-				// Kiểm tra nếu click vào nút "Thêm ảnh" thì không ẩn UI
-				if (e.target.closest('.upload-btn')) return;
 
-				const currentTime = new Date().getTime();
-				const clickDelay = currentTime - lastClickTime;
+			// --- ĐIỀU KHIỂN BẰNG CHUỘT ---
+			window.addEventListener('mousemove', (e) => {
+				// Chuyển tọa độ chuột về khoảng -1 đến 1 (giống như MediaPipe)
+				STATE.hand.x = (e.clientX / window.innerWidth - 0.5) * 2;
+				STATE.hand.y = (e.clientY / window.innerHeight - 0.5) * 2;
+				STATE.hand.detected = true; // Giả lập là luôn có "tay" để xoay được 3D
+			});
 
-				if (clickDelay < 300 && clickDelay > 0) {
-					// Đây là Double Click
-					const controls = document.querySelector('.upload-wrapper');
-					const title = document.querySelector('h1');
-					if (controls) controls.classList.toggle('ui-hidden');
-					if (title) title.classList.toggle('ui-hidden'); // Ẩn luôn cả chữ tiêu đề cho đẹp
+			// Click chuột để kích hoạt chế độ FOCUS (thay cho cử chỉ chụm tay)
+			window.addEventListener('mousedown', () => {
+				if (STATE.mode !== 'FOCUS') {
+					STATE.mode = 'FOCUS';
+					const photos = particleSystem.filter(p => p.type === 'PHOTO');
+					if (photos.length) {
+						STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh;
+					}
 				}
-				lastClickTime = currentTime;
+			});
+
+			// --- ĐIỀU KHIỂN BẰNG PHÍM ---
+			window.addEventListener('keydown', (e) => {
+				const key = e.key.toLowerCase();
+				
+				if (key === '1') {
+					STATE.mode = 'TREE';
+					STATE.focusTarget = null;
+				} else if (key === '2') {
+					STATE.mode = 'SCATTER';
+					STATE.focusTarget = null;
+				} else if (key === '3') {
+					// Phím 3 bật tắt chế độ Focus thủ công
+					STATE.mode = 'FOCUS';
+					const photos = particleSystem.filter(p => p.type === 'PHOTO');
+					if (photos.length) STATE.focusTarget = photos[Math.floor(Math.random()*photos.length)].mesh;
+				} else if (key === 'h') {
+					const controls = document.querySelector('.upload-wrapper');
+					if (controls) controls.classList.toggle('ui-hidden');
+				}
 			});
 		}
 
